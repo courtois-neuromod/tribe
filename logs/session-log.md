@@ -1,69 +1,137 @@
 # Session Log
 
-## 2026-02-10: Initial Setup
+## 2026-02-10: Initial Setup Session
 
 ### Step 1: Preserve previous work (done)
 - Created branch `previous-work` at HEAD (bf1778e + untracked CLUSTER_SETUP.md)
 - Reset `main` to original initial commit `afc8d55`
 - Clean working tree confirmed
+- Previous work is accessible via `git log previous-work` or `git diff main..previous-work`
 
 ### Step 2: SSH multiplexing setup (done)
-- Goal: persistent SSH connection to rorqual so 2FA only needed once
-- Actions:
-  1. Created `~/.ssh/sockets/` directory for control sockets
-  2. Added to `~/.ssh/config` for rorqual host:
-     - `ControlMaster auto`
-     - `ControlPath ~/.ssh/sockets/%r@%h-%p`
-     - `ControlPersist yes` (persist forever)
-     - `ServerAliveInterval 60` (keepalive every 60s)
-  3. User manually SSHed in (did 2FA)
-  4. All subsequent `ssh rorqual` commands now reuse the socket
-- Result: Connection verified: `rorqual1` as `mleclei`.
+- Added to `~/.ssh/config` for rorqual host:
+  - `ControlMaster auto`, `ControlPath ~/.ssh/sockets/%r@%h-%p`
+  - `ControlPersist yes` (persist forever)
+  - `ServerAliveInterval 60` (keepalive every 60s)
+- Created `~/.ssh/sockets/` directory
+- User must SSH in once manually for 2FA, then all subsequent connections reuse the socket
 
 ### Step 3: Cluster reconnaissance (done)
-- **Cluster**: Alliance Canada (rorqual1.alliancecan.ca)
-- **Working dir**: `/scratch/mleclei/` (faster than ~, use this for everything)
-- **Scratch**: 19TB Lustre filesystem, ~19TB available, currently nearly empty
-- **Home**: 50GB quota, 1.7GB used
-- **Python**: 3.10, 3.11, 3.12, 3.13 available via `module load`
-- **CUDA**: 12.2, 12.6, 12.9 available
-- **GPUs**: H100 nodes (4 GPUs per node)
-- **GPU partitions** (by time limit):
-  - `gpubase_interac` — 8h (interactive)
-  - `gpubase_bynode_b1` — 3h
-  - `gpubase_bynode_b2` — 12h
-  - `gpubase_bynode_b3` — 24h
-  - `gpubase_bynode_b4` — 3 days
-  - `gpubase_bynode_b5` — 7 days
-  - `gpubase_bygpu_b1..b5` — same tiers, by GPU allocation
-  - `gpubackfill` — opportunistic
-- **Module system**: requires `source /etc/profile` in non-interactive SSH
-- **Previous work**: scratch is clean (previous envs/data cleared)
-- **Note**: `trash/` dirs in ~ and scratch contain undeletable files, ignore them
+- **Cluster**: Alliance Canada, `rorqual1.alliancecan.ca`, user `mleclei`
+- **Working dir**: `/scratch/mleclei/` (Lustre, 19TB, use for everything)
+- **Home**: 50GB quota (avoid using for large files)
+- **Python**: 3.10–3.13 via `module load`
+- **CUDA**: 12.2, 12.6, 12.9
+- **GPUs**: H100 nodes (4 GPUs/node, 64 CPUs, 512GB RAM per node)
+- **SLURM accounts**: `rrg-pbellec_gpu` for GPU jobs, `rrg-pbellec_cpu` for CPU jobs
+- **GPU partitions**: `gpubase_interac` (8h), `gpubase_bynode_b1` (3h) through `b5` (7d)
+- **Module load order**: `python/3.12 gcc arrow` (arrow MUST come before venv activation)
 
-### Step 4: Job submission (done)
-- Tested both `salloc` and `sbatch` — both work
-- SLURM accounts: `rrg-pbellec_gpu` for GPU jobs, `rrg-pbellec_cpu` for CPU jobs
-- GPU nodes: 64 CPUs, 512GB RAM, H100 (4/node)
-- Strategy: `salloc` for interactive setup/debug, `sbatch` for long runs
-- Interactive partition `gpubase_interac` max 8h
-- Batch partitions up to 7 days (`gpubase_bynode_b5`)
+### Step 4: Code fixes (done, committed)
+- **Commit `2deee87`**: Fix packaging and make config cluster-agnostic
+  - Added `[build-system]` to `data_utils/pyproject.toml` and `modeling_utils/pyproject.toml`
+  - Replaced hardcoded paths in `defaults.py` with env var lookups (`SCRATCH`, `DATAPATH`, `SAVEPATH`, `SLURM_PARTITION`)
 
-### Step 5: Environment & code setup (done)
-- Cloned repo to `/scratch/mleclei/tribe`
-- Reset to initial commit `afc8d55` on cluster
-- Fixed `pyproject.toml` files (added `[build-system]`) and `defaults.py` (env var lookups)
-- Committed + pushed as `2deee87`
-- Synced fixes to cluster via rsync
-- Created venv at `/scratch/mleclei/envs/tribe`
-  - **Important**: must `module load python/3.12 gcc arrow` BEFORE activating venv (Alliance Canada Arrow requirement)
-  - Installed: torch 2.6.0, torchvision 0.21.0, torchaudio 2.6.0
-  - Installed: data_utils + modeling_utils (editable)
-  - Installed: transformers, moviepy, spacy, nilearn, Levenshtein, huggingface_hub[cli], julius
-- Created `setup_cluster.sh` — reproducible setup script for anyone
+### Step 5: Environment setup on cluster (done, committed)
+- **Commit `a762c8e`**: Add reproducible `setup_cluster.sh` and session log
+- Repo cloned to `/scratch/mleclei/tribe` (reset to `afc8d55`, then synced with fixes)
+- Venv created at `/scratch/mleclei/envs/tribe` with:
+  - torch 2.6.0, torchvision 0.21.0, torchaudio 2.6.0
+  - data_utils + modeling_utils (editable)
+  - transformers, moviepy, spacy, nilearn, Levenshtein, huggingface_hub[cli], julius
+- Env vars added to cluster `~/.bashrc`:
+  - `DATAPATH="$SCRATCH/algonauts_2025.competitors"`
+  - `SAVEPATH="$SCRATCH"`
 
-### Step 6: TODO
-- HuggingFace login for LLAMA 3.2 access
-- Acquire Algonauts 2025 dataset
-- Write feature extraction script + SLURM job
-- Test training run
+### Step 6: Feature extraction scripts (done, committed)
+- **Commit `086cd38`**: Add `extract_features_only.py` and `run_feature_extraction.sh`
+  - Python script: runs pipeline with `n_epochs=0`, `cluster=local` to cache features
+  - SLURM script: `rrg-pbellec_gpu`, 1 GPU, 64GB, 12h, `gpubase_bynode_b3`
+
+### Step 7: Dataset download (IN PROGRESS)
+- **Commit `a73cf90`**: Updated `setup_cluster.sh` with datalad download + env var steps
+- Dataset: `https://github.com/courtois-neuromod/algonauts_2025.competitors.git`
+- Downloaded via datalad on cluster: `datalad install -r` then `datalad get -r -J8 .`
+- Location: `/scratch/mleclei/algonauts_2025.competitors/`
+- **Status at session end: 26GB downloaded, still running in background (PID 1285396)**
+- To check progress: `ssh rorqual "du -sh /scratch/mleclei/algonauts_2025.competitors/ && tail -5 /scratch/mleclei/datalad_download.log"`
+- To check if still running: `ssh rorqual "ps aux | grep datalad | grep -v grep"`
+
+---
+
+## Resume Checklist (next session)
+
+### 1. Check dataset download
+```bash
+ssh rorqual "du -sh /scratch/mleclei/algonauts_2025.competitors/"
+ssh rorqual "ps aux | grep datalad | grep -v grep"
+ssh rorqual "tail -20 /scratch/mleclei/datalad_download.log"
+```
+If it failed or got killed, restart:
+```bash
+ssh rorqual "source /etc/profile; module load python/3.12 git-annex; export PATH=\$HOME/.local/bin:\$PATH; cd /scratch/mleclei/algonauts_2025.competitors && nohup datalad get -r -J8 . > /scratch/mleclei/datalad_download.log 2>&1 &"
+```
+
+### 2. HuggingFace login (user must do interactively)
+```bash
+ssh rorqual
+module load python/3.12 gcc arrow
+source /scratch/mleclei/envs/tribe/bin/activate
+huggingface-cli login
+```
+- Need a `read` token from https://huggingface.co/settings/tokens
+- Need access to https://huggingface.co/meta-llama/Llama-3.2-3B (request access, wait ~5-30 min)
+
+### 3. Test feature extraction (once dataset + HF login are ready)
+```bash
+# Edit extract_features_only.py — uncomment the small subset query first
+# Then:
+cd /scratch/mleclei/tribe
+sbatch run_feature_extraction.sh
+squeue -u mleclei
+```
+
+### 4. Full feature extraction
+- Comment out the subset query in `extract_features_only.py`
+- Submit again, expect 6-12 hours
+
+### 5. Test training run
+```bash
+cd /scratch/mleclei/tribe
+python -m algonauts2025.grids.test_run
+```
+
+### 6. Full grid search
+```bash
+python -m algonauts2025.grids.run_grid
+```
+
+---
+
+## File Locations
+
+| What | Where |
+|------|-------|
+| Repo (local) | `/home/maximilienleclei/cloud/research/tribe/` |
+| Repo (cluster) | `/scratch/mleclei/tribe/` |
+| Venv | `/scratch/mleclei/envs/tribe/` |
+| Dataset | `/scratch/mleclei/algonauts_2025.competitors/` |
+| Feature cache | `$SCRATCH/cache/algonauts-2025/` (created during extraction) |
+| Results | `$SCRATCH/results/algonauts-2025/` (created during training) |
+| Download log | `/scratch/mleclei/datalad_download.log` |
+| Previous work | `git log previous-work` (branch on local repo) |
+
+## Git History (current main)
+```
+a73cf90 Update setup script with dataset download and env var steps
+086cd38 Add feature extraction script and SLURM job
+a762c8e Add reproducible cluster setup script and session log
+2deee87 Fix packaging and make config cluster-agnostic
+afc8d55 Initial commit
+```
+
+## Key Reminders
+- Always `module load python/3.12 gcc arrow` BEFORE activating venv on cluster
+- Use `rrg-pbellec_gpu` for GPU jobs, `rrg-pbellec_cpu` for CPU jobs
+- SSH multiplexing: if connection drops, user must `ssh rorqual` once for 2FA
+- Sync code to cluster: `rsync -av --exclude='.git' --exclude='logs' /home/maximilienleclei/cloud/research/tribe/ rorqual:/scratch/mleclei/tribe/`
