@@ -10,9 +10,10 @@ from pathlib import Path
 PROJECT_NAME = "algonauts-2025"
 
 
-SLURM_PARTITION = "partition"
-DATADIR = "save_dir"
-BASEDIR = os.path.expandvars("save_dir")
+SCRATCH = os.environ.get("SCRATCH", os.path.expanduser("~"))
+SLURM_PARTITION = os.environ.get("SLURM_PARTITION", "gpubase_bynode_b3")
+DATADIR = os.environ.get("DATAPATH", os.path.join(SCRATCH, "data"))
+BASEDIR = os.environ.get("SAVEPATH", SCRATCH)
 
 CACHEDIR = os.path.join(BASEDIR, "cache", PROJECT_NAME)
 SAVEDIR = os.path.join(BASEDIR, "results", PROJECT_NAME)
