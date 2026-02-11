@@ -48,14 +48,18 @@
   - Python script: runs pipeline with `n_epochs=0`, `cluster=local` to cache features
   - SLURM script: `rrg-pbellec_gpu`, 1 GPU, 64GB, 12h, `gpubase_bynode_b3`
 
-### Step 7: Dataset download (IN PROGRESS)
-- **Commit `a73cf90`**: Updated `setup_cluster.sh` with datalad download + env var steps
+### Step 7: Dataset download (done)
 - Dataset: `https://github.com/courtois-neuromod/algonauts_2025.competitors.git`
-- Downloaded via datalad on cluster: `datalad install -r` then `datalad get -r -J8 .`
-- Location: `/scratch/mleclei/algonauts_2025.competitors/`
-- **Status at session end: 26GB downloaded, still running in background (PID 1285396)**
-- To check progress: `ssh rorqual "du -sh /scratch/mleclei/algonauts_2025.competitors/ && tail -5 /scratch/mleclei/datalad_download.log"`
-- To check if still running: `ssh rorqual "ps aux | grep datalad | grep -v grep"`
+- Downloaded via datalad: `datalad install -r` then `datalad get -r -J8 .`
+- Location: `/scratch/mleclei/algonauts_2025.competitors/` (131GB)
+
+### Step 8: HuggingFace login (done)
+- Logged in via `huggingface_hub.login()` (huggingface-cli not in PATH, used Python API)
+- LLAMA 3.2-3B access verified with tokenizer download test
+
+### Step 9: Feature extraction (TODO)
+- Ready to submit — both blockers cleared (dataset + HF login)
+- Start with small subset test, then full run
 
 ---
 
