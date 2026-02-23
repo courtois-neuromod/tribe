@@ -7,6 +7,8 @@
 
 set -euo pipefail
 
+module load apptainer 2>/dev/null || true
+
 TIME="${1:-00:30:00}"
 SIF="$SCRATCH/containers/tribe.sif"
 

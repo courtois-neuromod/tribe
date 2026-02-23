@@ -8,6 +8,8 @@
 
 set -euo pipefail
 
+module load apptainer 2>/dev/null || true
+
 SCRATCH="${SCRATCH:?SCRATCH env var not set}"
 DEF_FILE="$(cd "$(dirname "$0")" && pwd)/tribe.def"
 SIF_DIR="$SCRATCH/containers"
