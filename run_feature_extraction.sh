@@ -23,25 +23,35 @@ salloc --account=rrg-pbellec_gpu \
   --gres=gpu:nvidia_h100_80gb_hbm3_2g.20gb:1 \
   --cpus-per-task=4 --mem=30G \
   --time="$TIME" \
-  srun apptainer exec --nv \
-    --bind "$SCRATCH/tribe:/tribe" \
-    --bind "$HOME/.cache/huggingface:/hf_cache" \
-    --bind "$SCRATCH/data:/data" \
-    --bind "$SCRATCH:/scratch_host" \
-    "$SIF" \
-    bash -c '
-      export DATAPATH=/data
-      export SAVEPATH=/scratch_host
+  srun bash -c '
+    module load apptainer 2>/dev/null || true
 
-      echo "=== Job Info ==="
-      echo "Job ID:    $SLURM_JOB_ID"
-      echo "Node:      $SLURM_NODELIST"
-      echo "GPUs:      $CUDA_VISIBLE_DEVICES"
-      echo "Started:   $(date)"
-      echo ""
+    # Copy SIF to node-local SSD to avoid slow squashfuse reads over Lustre
+    LOCAL_SIF="$SLURM_TMPDIR/tribe.sif"
+    echo "Copying container to local SSD ($SLURM_TMPDIR)..."
+    cp '"$SIF"' "$LOCAL_SIF"
+    echo "  Done ($(du -h "$LOCAL_SIF" | cut -f1))"
 
-      python3 -u /tribe/extract_features_only.py
+    echo "=== Job Info ==="
+    echo "Job ID:    $SLURM_JOB_ID"
+    echo "Node:      $SLURM_NODELIST"
+    echo "GPUs:      $CUDA_VISIBLE_DEVICES"
+    echo "Started:   $(date)"
+    echo ""
 
-      echo ""
-      echo "Finished: $(date)"
-    '
+    apptainer exec --nv \
+      --bind "$SCRATCH/tribe:/tribe" \
+      --bind "$HOME/.cache/huggingface:/hf_cache" \
+      --bind "$SCRATCH/data:/data" \
+      --bind "$SCRATCH:/scratch_host" \
+      "$LOCAL_SIF" \
+      bash -c "
+        export DATAPATH=/data
+        export SAVEPATH=/scratch_host
+
+        python3 -u /tribe/extract_features_only.py
+
+        echo \"\"
+        echo \"Finished: \$(date)\"
+      "
+  '
