@@ -22,7 +22,7 @@ echo "  Definition: $DEF_FILE"
 echo "  Output:     $SIF_FILE"
 echo ""
 
-apptainer build --fakeroot "$SIF_FILE" "$DEF_FILE"
+apptainer build --fakeroot --force "$SIF_FILE" "$DEF_FILE"
 
 echo ""
 echo "Build complete: $SIF_FILE"
