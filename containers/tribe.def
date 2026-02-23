@@ -1,0 +1,41 @@
+Bootstrap: docker
+From: nvidia/cuda:12.4.1-runtime-ubuntu24.04
+
+%labels
+    Author Maximilien Leclei
+    Description TRIBE feature extraction container (Python 3.12 + CUDA 12.4)
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+
+    apt-get update && apt-get install -y --no-install-recommends \
+        python3 python3-pip python3-venv \
+        ffmpeg \
+        git \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Install Python packages (no venv needed — system python is fine in a container)
+    pip3 install --no-cache-dir --break-system-packages \
+        torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
+        numpy scipy pandas pyarrow packaging \
+        transformers moviepy spacy nilearn Levenshtein julius h5py \
+        decorator matplotlib platformdirs pygments pillow \
+        "huggingface_hub[cli]" \
+        exca
+
+    # Download spacy model (baked into container)
+    python3 -m spacy download en_core_web_lg
+
+    # Create mount points
+    mkdir -p /tribe /hf_cache /data /scratch_host
+
+%environment
+    # Python finds source code via PYTHONPATH (no editable installs needed)
+    export PYTHONPATH=/tribe/data_utils:/tribe/modeling_utils:/tribe
+    export HF_HOME=/hf_cache
+    export HF_HUB_OFFLINE=1
+    export TRANSFORMERS_OFFLINE=1
+    export PYTHONUNBUFFERED=1
+
+%runscript
+    exec python3 "$@"
