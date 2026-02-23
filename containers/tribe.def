@@ -32,7 +32,8 @@ From: nvidia/cuda:12.4.1-runtime-ubuntu22.04
         transformers moviepy spacy nilearn Levenshtein julius h5py \
         decorator matplotlib platformdirs pygments pillow \
         "huggingface_hub[cli]" \
-        exca
+        exca \
+        lightning einops torchmetrics x_transformers wandb
 
     # Download spacy model (baked into container)
     python3 -m spacy download en_core_web_lg
