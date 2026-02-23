@@ -252,5 +252,5 @@ class LLAMA3p2(pydantic.BaseModel):
                 word_state = hidden_state[:, -len(target_word) :]
 
                 word_state = word_state.mean(axis=1)
-                out = word_state.cpu().numpy()
+                out = word_state.cpu().float().numpy()
                 yield out

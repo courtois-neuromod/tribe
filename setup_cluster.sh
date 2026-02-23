@@ -59,8 +59,13 @@ pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0
 cd "$INSTALL_DIR"
 pip install -e data_utils/ -e modeling_utils/
 
+# Core scientific packages (not provided by Alliance Canada modules when
+# the venv is created with include-system-site-packages=false)
+pip install numpy scipy pandas pyarrow packaging
+
 # Additional dependencies
-pip install transformers moviepy spacy nilearn Levenshtein "huggingface_hub[cli]" julius h5py
+pip install transformers moviepy spacy nilearn Levenshtein "huggingface_hub[cli]" julius h5py \
+    decorator matplotlib platformdirs pygments pillow
 
 # Datalad (for dataset download)
 pip install datalad
@@ -97,8 +102,8 @@ huggingface-cli login
 # All models must be cached on the login node first.
 echo "[8/9] Pre-downloading models (compute nodes have no internet)..."
 
-echo "  Downloading spacy English model..."
-python -m spacy download en_core_web_sm
+echo "  Downloading spacy English model (en_core_web_lg)..."
+python -m spacy download en_core_web_lg
 
 echo "  Downloading LLAMA 3.2-3B..."
 python -c "
@@ -143,10 +148,15 @@ else
 fi
 
 echo ""
+echo "=== Running diagnostics ==="
+python "$INSTALL_DIR/diagnose.py"
+
+echo ""
 echo "=== Setup complete ==="
 echo ""
 echo "To activate the environment in future sessions / SLURM jobs:"
-echo "  module load python/3.12 gcc arrow"
+echo "  source /etc/profile && source ~/.bashrc"
+echo "  module load python/3.12 gcc arrow ffmpeg"
 echo "  source $VENV_DIR/bin/activate"
 echo ""
 echo "Next steps:"

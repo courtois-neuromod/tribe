@@ -83,7 +83,7 @@ def main():
         },
         "data": {
             "num_workers": 4,
-            "study": {"query": "subject_timeline_index<10"},
+            "study": {"query": "subject_timeline_index<1"},
         },
     }
 
