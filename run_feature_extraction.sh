@@ -24,7 +24,6 @@ salloc --account=rrg-pbellec_gpu \
   --gres=gpu:nvidia_h100_80gb_hbm3_2g.20gb:1 \
   --cpus-per-task=4 --mem=30G \
   --time="$TIME" \
-  --export=ALL \
   srun bash -c '
     module load apptainer 2>/dev/null || true
 
