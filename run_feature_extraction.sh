@@ -19,18 +19,22 @@ if [ ! -f "$SIF" ]; then
 fi
 
 echo "Requesting GPU allocation (time=$TIME)..."
+export TRIBE_SIF="$SIF"
 salloc --account=rrg-pbellec_gpu \
   --gres=gpu:nvidia_h100_80gb_hbm3_2g.20gb:1 \
   --cpus-per-task=4 --mem=30G \
   --time="$TIME" \
+  --export=ALL \
   srun bash -c '
     module load apptainer 2>/dev/null || true
 
-    # Copy SIF to node-local SSD to avoid slow squashfuse reads over Lustre
+    # Copy SIF to node-local SSD — avoids slow squashfuse reads over Lustre.
+    # This takes ~4 min but makes imports instant (seconds vs 5-10 min).
     LOCAL_SIF="$SLURM_TMPDIR/tribe.sif"
     echo "Copying container to local SSD ($SLURM_TMPDIR)..."
-    cp '"$SIF"' "$LOCAL_SIF"
+    cp "$TRIBE_SIF" "$LOCAL_SIF"
     echo "  Done ($(du -h "$LOCAL_SIF" | cut -f1))"
+    echo ""
 
     echo "=== Job Info ==="
     echo "Job ID:    $SLURM_JOB_ID"
