@@ -39,13 +39,13 @@ salloc --account=rrg-pbellec_gpu \
         python3 -m venv "$SLURM_TMPDIR/venv"
         source "$SLURM_TMPDIR/venv/bin/activate"
 
-        pip install --no-index --quiet \
+        pip install --no-index --find-links "$SCRATCH/wheels" --quiet \
             torch torchvision torchaudio \
             numpy scipy pandas packaging \
             transformers spacy nilearn h5py \
             matplotlib lightning einops torchmetrics wandb \
             Levenshtein julius moviepy decorator platformdirs pygments pillow \
-            huggingface_hub exca 2>&1 | tail -3
+            huggingface_hub exca x_transformers 2>&1 | tail -3
 
         echo "  Venv ready ($(du -sh "$SLURM_TMPDIR/venv" | cut -f1))"
     else

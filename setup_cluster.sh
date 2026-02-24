@@ -72,6 +72,14 @@ pip install datalad
 
 echo "  All dependencies installed."
 
+# --- Step 4b: Pre-download wheels not in Alliance wheelhouse ---
+# Compute nodes have no internet, so packages missing from the Alliance
+# wheelhouse must be cached as wheels on $SCRATCH.
+echo "  Pre-downloading wheels for packages not in Alliance wheelhouse..."
+mkdir -p "$SCRATCH/wheels"
+pip download --dest "$SCRATCH/wheels" exca x_transformers
+echo "  Wheels saved to $SCRATCH/wheels"
+
 # --- Step 5: Download the Algonauts 2025 dataset ---
 if [ -d "$DATA_DIR/.git" ]; then
     echo "[5/9] Dataset already cloned at $DATA_DIR, skipping..."
