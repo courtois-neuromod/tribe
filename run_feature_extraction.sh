@@ -47,6 +47,10 @@ salloc --account=rrg-pbellec_gpu \
             Levenshtein julius moviepy decorator platformdirs pygments pillow \
             huggingface_hub exca x_transformers 2>&1 | tail -3
 
+        # Install local packages (editable so code changes take effect)
+        pip install --no-deps --no-index -e "$SCRATCH/tribe/data_utils" \
+            -e "$SCRATCH/tribe/modeling_utils" --quiet
+
         echo "  Venv ready ($(du -sh "$SLURM_TMPDIR/venv" | cut -f1))"
     else
         # ── Slow mode (venv on $SCRATCH) ──────────────────────────────
