@@ -16,75 +16,52 @@ set -euo pipefail
 
 SCRATCH="${SCRATCH:?SCRATCH env var not set}"
 INSTALL_DIR="${INSTALL_DIR:-$SCRATCH/tribe}"
-VENV_DIR="${INSTALL_DIR}/envs/tribe"
 DATA_DIR="${DATAPATH:-$SCRATCH/algonauts_2025.competitors}"
 
 echo "=== TRIBE Cluster Setup ==="
 echo "Install dir: $INSTALL_DIR"
-echo "Venv dir:    $VENV_DIR"
 echo "Data dir:    $DATA_DIR"
 echo ""
 
 # --- Step 1: Load required modules ---
 # Arrow must be loaded BEFORE creating the venv (Alliance Canada requirement)
-echo "[1/9] Loading modules..."
+echo "[1/8] Loading modules..."
 module load python/3.12 gcc arrow git-annex
 echo "  Loaded: python/3.12, gcc, arrow, git-annex"
 
 # --- Step 2: Clone the repository ---
 if [ -d "$INSTALL_DIR/.git" ]; then
-    echo "[2/9] Repository already exists at $INSTALL_DIR, pulling latest..."
+    echo "[2/8] Repository already exists at $INSTALL_DIR, pulling latest..."
     cd "$INSTALL_DIR" && git pull
 else
-    echo "[2/9] Cloning repository..."
+    echo "[2/8] Cloning repository..."
     git clone git@github.com:courtois-neuromod/tribe.git "$INSTALL_DIR"
 fi
 
-# --- Step 3: Create virtual environment ---
-if [ -d "$VENV_DIR" ]; then
-    echo "[3/9] Venv already exists at $VENV_DIR, skipping creation..."
-else
-    echo "[3/9] Creating virtual environment..."
-    python3 -m venv "$VENV_DIR"
+# --- Step 3: Create a temporary venv for setup tasks ---
+# This venv is only used on the login node for downloading models and data.
+# Compute nodes build their own venv on local SSD at job start.
+echo "[3/8] Creating temporary setup venv..."
+SETUP_VENV="$SCRATCH/envs/tribe-setup"
+if [ ! -d "$SETUP_VENV" ]; then
+    python3 -m venv "$SETUP_VENV"
 fi
-source "$VENV_DIR/bin/activate"
+source "$SETUP_VENV/bin/activate"
 
-# --- Step 4: Install dependencies ---
-echo "[4/9] Installing dependencies..."
+pip install --quiet transformers spacy "huggingface_hub[cli]" datalad
 
-# PyTorch
-pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0
-
-# Local packages (editable mode)
-cd "$INSTALL_DIR"
-pip install -e data_utils/ -e modeling_utils/
-
-# Core scientific packages (not provided by Alliance Canada modules when
-# the venv is created with include-system-site-packages=false)
-pip install numpy scipy pandas pyarrow packaging
-
-# Additional dependencies
-pip install transformers moviepy spacy nilearn Levenshtein "huggingface_hub[cli]" julius h5py \
-    decorator matplotlib platformdirs pygments pillow
-
-# Datalad (for dataset download)
-pip install datalad
-
-echo "  All dependencies installed."
-
-# --- Step 4b: Pre-download wheels not in Alliance wheelhouse ---
-# Compute nodes have no internet, so packages missing from the Alliance
-# wheelhouse must be cached as wheels on $SCRATCH.
+# Pre-download wheels for packages not in Alliance wheelhouse.
+# Compute nodes have no internet, so these must be cached on $SCRATCH.
 echo "  Pre-downloading wheels for packages not in Alliance wheelhouse..."
 mkdir -p "$SCRATCH/wheels"
 pip download --dest "$SCRATCH/wheels" exca x_transformers
 echo "  Wheels saved to $SCRATCH/wheels"
 
-# --- Step 5: Download the Algonauts 2025 dataset ---
+# --- Step 4: Download the Algonauts 2025 dataset ---
 if [ -d "$DATA_DIR/.git" ]; then
-    echo "[5/9] Dataset already cloned at $DATA_DIR, skipping..."
+    echo "[4/8] Dataset already cloned at $DATA_DIR, skipping..."
 else
-    echo "[5/9] Downloading Algonauts 2025 dataset (this will take a while)..."
+    echo "[4/8] Downloading Algonauts 2025 dataset (this will take a while)..."
     cd "$(dirname "$DATA_DIR")"
     datalad install -r -s https://github.com/courtois-neuromod/algonauts_2025.competitors.git
     cd "$DATA_DIR"
@@ -92,23 +69,23 @@ else
     echo "  Dataset download complete."
 fi
 
-# --- Step 6: Create expected directory structure ---
+# --- Step 5: Create expected directory structure ---
 # The code expects data at DATAPATH/algonauts2025/download/algonauts_2025.competitors/
-echo "[6/9] Setting up dataset directory structure..."
+echo "[5/8] Setting up dataset directory structure..."
 mkdir -p "$SCRATCH/data/algonauts2025/download"
 ln -sf "$DATA_DIR" "$SCRATCH/data/algonauts2025/download/algonauts_2025.competitors"
 echo "  Symlinked dataset to expected location"
 
-# --- Step 7: HuggingFace login ---
-echo "[7/9] HuggingFace login (needed for LLAMA 3.2-3B access)..."
+# --- Step 6: HuggingFace login ---
+echo "[6/8] HuggingFace login (needed for LLAMA 3.2-3B access)..."
 echo "  You need a 'read' token from https://huggingface.co/settings/tokens"
 echo "  And access to https://huggingface.co/meta-llama/Llama-3.2-3B"
 huggingface-cli login
 
-# --- Step 8: Pre-download models ---
+# --- Step 7: Pre-download models ---
 # Compute nodes have NO internet access on Alliance Canada clusters.
 # All models must be cached on the login node first.
-echo "[8/9] Pre-downloading models (compute nodes have no internet)..."
+echo "[7/8] Pre-downloading models (compute nodes have no internet)..."
 
 echo "  Downloading spacy English model (en_core_web_lg)..."
 python -m spacy download en_core_web_lg
@@ -139,8 +116,8 @@ print('  VJEPA2: OK')
 
 echo "  All models downloaded."
 
-# --- Step 9: Set environment variables ---
-echo "[9/9] Setting environment variables..."
+# --- Step 8: Set environment variables ---
+echo "[8/8] Setting environment variables..."
 
 # Only append if not already present
 if ! grep -q "TRIBE environment" ~/.bashrc 2>/dev/null; then
@@ -159,18 +136,10 @@ echo ""
 echo "=== Running diagnostics ==="
 python "$INSTALL_DIR/diagnose.py"
 
-# --- Step 10 (optional): Build Apptainer container ---
-echo ""
-echo "[10] Building Apptainer container (optional, speeds up imports)..."
-echo "  This bundles all Python deps into a container image, avoiding"
-echo "  slow CVMFS imports on cold compute nodes."
-bash "$INSTALL_DIR/containers/build.sh" || echo "  WARNING: Container build failed. You can still use venv mode."
-
 echo ""
 echo "=== Setup complete ==="
 echo ""
 echo "Next steps:"
-echo "  1. Run feature extraction (venv):       bash run_feature_extraction.sh 02:30:00"
-echo "  2. Run feature extraction (container):  bash run_feature_extraction.sh --container 02:30:00"
-echo "  3. Run a test training:                 python -m algonauts2025.grids.test_run"
-echo "  4. Run full grid search:                python -m algonauts2025.grids.run_grid"
+echo "  1. Run feature extraction:  bash run_feature_extraction.sh"
+echo "  2. Run a test training:     python -m algonauts2025.grids.test_run"
+echo "  3. Run full grid search:    python -m algonauts2025.grids.run_grid"

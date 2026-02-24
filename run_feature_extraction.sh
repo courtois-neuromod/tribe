@@ -1,63 +1,41 @@
 #!/bin/bash
 # Run feature extraction interactively via salloc + srun.
-# Usage: bash run_feature_extraction.sh [--slow] [time]
-#   --slow: use venv on $SCRATCH directly (slow imports on cold nodes)
-#   time:   walltime in HH:MM:SS (default: 04:00:00)
+# Usage: bash run_feature_extraction.sh [time]
+#   time: walltime in HH:MM:SS (default: 04:00:00)
 #
-# By default, builds a fresh venv on the node-local SSD ($SLURM_TMPDIR)
-# using Alliance Canada's wheelhouse. This avoids the 5-10 min CVMFS
+# Builds a fresh venv on the node-local SSD ($SLURM_TMPDIR) using
+# Alliance Canada's wheelhouse (~75s). This avoids the 5-10 min CVMFS
 # import hangs on cold compute nodes.
 #
 # Run this from a login node on the cluster.
 
 set -euo pipefail
 
-MODE=local
-TIME="04:00:00"
+TIME="${1:-04:00:00}"
 
-for arg in "$@"; do
-    case "$arg" in
-        --slow) MODE=slow ;;
-        *) TIME="$arg" ;;
-    esac
-done
-
-echo "Requesting GPU allocation (time=$TIME, mode=$MODE)..."
+echo "Requesting GPU allocation (time=$TIME)..."
 salloc --account=rrg-pbellec_gpu \
   --gres=gpu:nvidia_h100_80gb_hbm3_2g.20gb:1 \
   --cpus-per-task=4 --mem=30G \
   --time="$TIME" \
   srun bash -c '
-    MODE='"$MODE"'
+    echo "Building local venv on $SLURM_TMPDIR..."
+    module load python/3.12 gcc arrow ffmpeg
+    python3 -m venv "$SLURM_TMPDIR/venv"
+    source "$SLURM_TMPDIR/venv/bin/activate"
 
-    if [ "$MODE" = "local" ]; then
-        # ── Local venv mode (default) ─────────────────────────────────
-        # Build a venv on node-local SSD from Alliance wheelhouse.
-        # No network needed — pip install --no-index uses local wheels.
-        echo "Building local venv on $SLURM_TMPDIR..."
-        module load python/3.12 gcc arrow ffmpeg
-        python3 -m venv "$SLURM_TMPDIR/venv"
-        source "$SLURM_TMPDIR/venv/bin/activate"
+    pip install --no-index --find-links "$SCRATCH/wheels" --quiet \
+        torch torchvision torchaudio \
+        numpy scipy pandas packaging \
+        transformers spacy nilearn h5py \
+        matplotlib lightning einops torchmetrics wandb \
+        Levenshtein julius moviepy decorator platformdirs pygments pillow \
+        huggingface_hub exca x_transformers 2>&1 | tail -3
 
-        pip install --no-index --find-links "$SCRATCH/wheels" --quiet \
-            torch torchvision torchaudio \
-            numpy scipy pandas packaging \
-            transformers spacy nilearn h5py \
-            matplotlib lightning einops torchmetrics wandb \
-            Levenshtein julius moviepy decorator platformdirs pygments pillow \
-            huggingface_hub exca x_transformers 2>&1 | tail -3
+    pip install --no-deps --no-index -e "$SCRATCH/tribe/data_utils" \
+        -e "$SCRATCH/tribe/modeling_utils" --quiet
 
-        # Install local packages (editable so code changes take effect)
-        pip install --no-deps --no-index -e "$SCRATCH/tribe/data_utils" \
-            -e "$SCRATCH/tribe/modeling_utils" --quiet
-
-        echo "  Venv ready ($(du -sh "$SLURM_TMPDIR/venv" | cut -f1))"
-    else
-        # ── Slow mode (venv on $SCRATCH) ──────────────────────────────
-        echo "Using venv on \$SCRATCH (imports may be slow on cold nodes)..."
-        module load python/3.12 gcc arrow ffmpeg
-        source "$SCRATCH/envs/tribe/bin/activate"
-    fi
+    echo "  Venv ready ($(du -sh "$SLURM_TMPDIR/venv" | cut -f1))"
 
     export DATAPATH="$SCRATCH/data"
     export SAVEPATH="$SCRATCH"
